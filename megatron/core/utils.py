@@ -360,6 +360,9 @@ def is_te_min_version(version, check_equality=True):
             "packaging is not installed. Please install it with `pip install packaging`."
         )
 
+    if get_te_version() is None:
+        return False
+
     if check_equality:
         return get_te_version() >= PkgVersion(version)
     return get_te_version() > PkgVersion(version)
@@ -1237,10 +1240,23 @@ def local_multi_tensor_l2_norm(chunk_size, noop_flag, tensor_lists, per_tensor, 
     Computes l2 norm for a list of contiguous tensors
     works as a drop-in replacement for amp_C.multi_tensor_l2norm
     """
-    l2 = [[(torch.norm(tensor)) for tensor in tensor_list] for tensor_list in tensor_lists]
-    l2_reduced = torch.norm(torch.tensor(l2))
-    l2_cuda = torch.tensor([float(l2_reduced)], dtype=torch.float, device="cuda")
-    return l2_cuda, None
+    norms = []
+    for tensor_list in tensor_lists:
+        for tensor in tensor_list:
+            norms.append(torch.norm(tensor))
+
+    if not norms:
+        # Default to cuda as per original implementation if available
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.tensor([0.0], dtype=torch.float, device=device), None
+
+    l2_reduced = torch.norm(torch.stack(norms)).view(1)
+
+    # Ensure output is on CUDA if available to match amp_C behavior
+    if torch.cuda.is_available() and l2_reduced.device.type != 'cuda':
+        l2_reduced = l2_reduced.to('cuda')
+
+    return l2_reduced, None
 
 
 # works as a drop-in replacement for amp_C.multi_tensor_scale
