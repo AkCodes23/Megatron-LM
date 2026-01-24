@@ -8,3 +8,7 @@
 ## 2025-10-27 - CPU Testing
 **Learning:** The codebase defaults to NCCL and CUDA for distributed init, causing tests to fail on CPU-only environments.
 **Action:** Patch `tests/unit_tests/test_utilities.py` to use `gloo` backend if CUDA is unavailable.
+
+## 2025-10-28 - [GPU Synchronization in Fallback Code]
+**Learning:** Fallback implementations (like `local_multi_tensor_l2_norm`) often contain CPU-GPU synchronization points (e.g., `float(tensor)`) that severely impact performance by blocking asynchronous kernel execution.
+**Action:** Ensure all reductions and scalar conversions happen on the device using `torch.stack`, `torch.norm`, and avoid Python type casting of CUDA tensors.
