@@ -8,3 +8,7 @@
 ## 2025-10-27 - CPU Testing
 **Learning:** The codebase defaults to NCCL and CUDA for distributed init, causing tests to fail on CPU-only environments.
 **Action:** Patch `tests/unit_tests/test_utilities.py` to use `gloo` backend if CUDA is unavailable.
+
+## 2025-10-27 - [Broken File & Inner Functions]
+**Learning:** `megatron/training/training.py` was broken with duplicated/interleaved functions and syntax errors. Inner functions were used which is an anti-pattern for performance.
+**Action:** Refactored to module-level functions and fixed syntax errors.
