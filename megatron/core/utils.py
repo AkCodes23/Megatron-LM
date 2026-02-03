@@ -365,9 +365,13 @@ def is_te_min_version(version, check_equality=True):
             "packaging is not installed. Please install it with `pip install packaging`."
         )
 
+    te_version = get_te_version()
+    if te_version is None:
+        return False
+
     if check_equality:
-        return get_te_version() >= PkgVersion(version)
-    return get_te_version() > PkgVersion(version)
+        return te_version >= PkgVersion(version)
+    return te_version > PkgVersion(version)
 
 
 def get_torch_version():
@@ -1215,10 +1219,18 @@ def local_multi_tensor_l2_norm(chunk_size, noop_flag, tensor_lists, per_tensor, 
     norms = []
     device = None
     for tensor_list in tensor_lists:
-        for tensor in tensor_list:
-            if device is None:
-                device = tensor.device
-            norms.append(torch.norm(tensor, p=2, dtype=torch.float32))
+        if not tensor_list:
+            continue
+        if device is None:
+            device = tensor_list[0].device
+
+        if hasattr(torch, "_foreach_norm"):
+            sub_norms = torch._foreach_norm(tensor_list, 2.0)
+            for n in sub_norms:
+                norms.append(n.to(dtype=torch.float32))
+        else:
+            for tensor in tensor_list:
+                norms.append(torch.norm(tensor, p=2, dtype=torch.float32))
 
     if not norms:
         if device is None:
