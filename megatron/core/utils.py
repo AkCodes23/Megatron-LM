@@ -365,6 +365,9 @@ def is_te_min_version(version, check_equality=True):
             "packaging is not installed. Please install it with `pip install packaging`."
         )
 
+    if get_te_version() is None:
+        return False
+
     if check_equality:
         return get_te_version() >= PkgVersion(version)
     return get_te_version() > PkgVersion(version)
@@ -1234,8 +1237,14 @@ def local_multi_tensor_l2_norm(chunk_size, noop_flag, tensor_lists, per_tensor, 
 # works as a drop-in replacement for amp_C.multi_tensor_scale
 def local_multi_tensor_scale(chunk_size, noop_flag, tensor_lists, scale):
     """Works as a drop-in replacement for amp_C.multi_tensor_scale."""
-    for src, dst in zip(tensor_lists[0], tensor_lists[1]):
-        dst.copy_(src * scale)
+    # Optimization: Use foreach_mul_ for in-place scaling (when src and dst are the same).
+    # This avoids intermediate tensor allocation and uses a faster fused kernel.
+    if tensor_lists[0] is tensor_lists[1]:
+        torch._foreach_mul_(tensor_lists[0], scale)
+    else:
+        # Fallback for out-of-place scaling
+        for src, dst in zip(tensor_lists[0], tensor_lists[1]):
+            dst.copy_(src * scale)
 
 
 class _ValueWithRank:

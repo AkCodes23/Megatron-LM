@@ -12,3 +12,7 @@
 ## 2025-10-27 - PyTorch Optimization
 **Learning:** Using `torch.tensor(list_of_tensors)` or `float(tensor)` causes significant CPU-GPU synchronization overhead.
 **Action:** Use `torch.stack` to combine tensors and keep computations on the device. Avoid converting tensors to Python scalars in hot paths.
+
+## 2025-10-27 - Multi-Tensor Scale Optimization
+**Learning:** Using `torch._foreach_mul_` for in-place scaling of tensor lists avoids intermediate tensor allocation and uses faster fused kernels, yielding ~2-3x speedup on CPU.
+**Action:** Replace `for src, dst in zip(srcs, dsts): dst.copy_(src * scale)` with `torch._foreach_mul_(srcs, scale)` when `srcs is dsts`. Avoid `srcs == dsts` check as it triggers tensor boolean ambiguity error.
