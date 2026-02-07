@@ -365,9 +365,13 @@ def is_te_min_version(version, check_equality=True):
             "packaging is not installed. Please install it with `pip install packaging`."
         )
 
+    te_version = get_te_version()
+    if te_version is None:
+        return False
+
     if check_equality:
-        return get_te_version() >= PkgVersion(version)
-    return get_te_version() > PkgVersion(version)
+        return te_version >= PkgVersion(version)
+    return te_version > PkgVersion(version)
 
 
 def get_torch_version():
@@ -1225,27 +1229,17 @@ def local_multi_tensor_l2_norm(chunk_size, noop_flag, tensor_lists, per_tensor, 
         if device is None:
             device = tensor_list[0].device
 
-        # Check for _foreach_norm availability AND float32 dtype to ensure precision/range safety.
-        # _foreach_norm returns results in the same dtype as input. For fp16/bf16, this can cause
-        # overflow if the norm exceeds the range of the type (e.g., > 65504 for fp16).
-        # The original implementation forces float32 accumulation and return type.
-        if hasattr(torch, "_foreach_norm") and tensor_list[0].dtype == torch.float32:
-            batch_norms = torch._foreach_norm(tensor_list, 2.0)
-            norms.extend(batch_norms)
-        else:
-            for tensor in tensor_list:
-                norms.append(torch.norm(tensor, p=2, dtype=torch.float32))
-
     if not all_tensors:
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         return torch.tensor([0.0], dtype=torch.float32, device=device), None
 
-    if hasattr(torch, '_foreach_norm'):
+    # Check for _foreach_norm availability AND float32 dtype to ensure precision/range safety.
+    # _foreach_norm returns results in the same dtype as input. For fp16/bf16, this can cause
+    # overflow if the norm exceeds the range of the type (e.g., > 65504 for fp16).
+    # The original implementation forces float32 accumulation and return type.
+    if hasattr(torch, "_foreach_norm") and all_tensors[0].dtype == torch.float32:
         norms = torch._foreach_norm(all_tensors, 2.0)
-        # Ensure they are float32
-        if norms[0].dtype != torch.float32:
-            norms = [n.to(dtype=torch.float32) for n in norms]
     else:
         for tensor in all_tensors:
             norms.append(torch.norm(tensor, p=2, dtype=torch.float32))

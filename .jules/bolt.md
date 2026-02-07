@@ -22,3 +22,6 @@
 ## 2025-10-27 - torch._foreach_norm Precision Safety
 **Learning:** `torch._foreach_norm` accumulates in the input dtype and lacks a `dtype` argument. Using it on FP16/BF16 inputs can cause overflow if the sum of squares exceeds the type's range (e.g., > 65504 for FP16).
 **Action:** Restrict `torch._foreach_norm` optimization to `torch.float32` inputs. For lower precision, fallback to `torch.norm(..., dtype=torch.float32)` or manually cast before calling.
+## 2025-10-27 - [PyTorch L2 Norm Optimization]
+**Learning:** `local_multi_tensor_l2_norm` was performing redundant calculations by iterating chunks and then re-calculating on the full list. Optimizing it to flatten the list first enables a single `torch._foreach_norm` call.
+**Action:** When implementing multi-tensor operations, flatten nested lists of tensors to maximize the batch size for `_foreach` kernels, and ensure safety checks (like dtype) are applied to the flattened list.
