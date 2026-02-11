@@ -1246,8 +1246,30 @@ def local_multi_tensor_l2_norm(chunk_size, noop_flag, tensor_lists, per_tensor, 
 # works as a drop-in replacement for amp_C.multi_tensor_scale
 def local_multi_tensor_scale(chunk_size, noop_flag, tensor_lists, scale):
     """Works as a drop-in replacement for amp_C.multi_tensor_scale."""
-    for src, dst in zip(tensor_lists[0], tensor_lists[1]):
-        dst.copy_(src * scale)
+    src_list = tensor_lists[0]
+    dst_list = tensor_lists[1]
+
+    if not src_list or not dst_list:
+        return
+
+    if src_list is dst_list:
+        if hasattr(torch, "_foreach_mul_"):
+            torch._foreach_mul_(dst_list, scale)
+        else:
+            for t in dst_list:
+                t.mul_(scale)
+    else:
+        if hasattr(torch, "_foreach_copy_"):
+            torch._foreach_copy_(dst_list, src_list)
+            if scale != 1.0:
+                if hasattr(torch, "_foreach_mul_"):
+                    torch._foreach_mul_(dst_list, scale)
+                else:
+                    for t in dst_list:
+                        t.mul_(scale)
+        else:
+            for src, dst in zip(src_list, dst_list):
+                dst.copy_(src * scale)
 
 
 class _ValueWithRank:
